@@ -7,11 +7,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"fleet-log-policy/internal/fleetlog/handler"
+	"fleet-log-policy/internal/fleetlog/repo"
+	"fleet-log-policy/internal/fleetlog/service"
 	"fleet-log-policy/internal/gateway/router"
 	"fleet-log-policy/pkg/config"
 	"fleet-log-policy/pkg/logger"
@@ -37,6 +43,32 @@ func main() {
 	config.PrintSourceNotice(cfg, os.Stdout)
 
 	engine := router.New(log, cfg.Middleware)
+
+	// 题目 09：打开 SQLite（纯 Go 驱动）、迁移、预置数据并挂载业务路由。
+	store, err := repo.Open(dbPath())
+	if err != nil {
+		log.Fatal("fleetlog database open failed", zap.Error(err))
+	}
+	if err := store.Seed(); err != nil {
+		log.Fatal("fleetlog seed failed", zap.Error(err))
+	}
+	svc := service.New(store, timeoutSeconds())
+	h := handler.New(svc)
+	router.RegisterFleetLog(engine, h)
+	engine.Static("/web", "./web")
+	engine.GET("/", func(c *gin.Context) { c.Redirect(302, "/web/index.html") })
+
+	// 教学时钟：后台每秒扫描一次超时，保证 60 秒（可配置）阈值可演示。
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := svc.Tick(); err != nil {
+				log.Error("fleetlog tick failed", zap.Error(err))
+			}
+		}
+	}()
+
 	addr := fmt.Sprintf("%s:%d", cfg.HTTP.Host, cfg.HTTP.Port)
 	server := &http.Server{
 		Addr:         addr,
@@ -60,6 +92,24 @@ func main() {
 	}()
 
 	waitForShutdown(server, log)
+}
+
+// dbPath 返回 SQLite 文件位置；可用 FLEETLOG_DB_PATH 覆盖。
+func dbPath() string {
+	if v := strings.TrimSpace(os.Getenv("FLEETLOG_DB_PATH")); v != "" {
+		return v
+	}
+	return "data/fleetlog.db"
+}
+
+// timeoutSeconds 返回教学超时阈值（题面 60 秒；演示可用 FLEETLOG_TIMEOUT_SECONDS 缩短并须注明）。
+func timeoutSeconds() int {
+	if v := strings.TrimSpace(os.Getenv("FLEETLOG_TIMEOUT_SECONDS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 60
 }
 
 func printStartupFailure(addr string, err error) {
