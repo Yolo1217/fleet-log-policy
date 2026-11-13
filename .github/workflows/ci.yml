@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - 'dev/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: 单元测试与覆盖率门禁
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: 依赖整理检查
+        run: go mod tidy && git diff --exit-code -- go.mod go.sum
+      - name: 编译
+        run: go build ./...
+      - name: 静态检查
+        run: go vet ./...
+      - name: 单元测试与覆盖率采集
+        run: go test -count=1 ./internal/fleetlog/... -coverpkg=./internal/fleetlog/... -coverprofile=coverage.out
+      - name: 覆盖率门禁（≥85%）
+        run: |
+          total=$(go tool cover -func=coverage.out | awk '/^total:/{print $3}' | tr -d '%')
+          echo "整体覆盖率：${total}%"
+          awk -v t="${total}" 'BEGIN{if (t+0 < 85) {print "覆盖率低于 85%"; exit 1}}'
+      - name: 上传覆盖率报告
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  business-rules:
+    name: 业务规则黑盒核查（自编 Skill）
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: 运行业务专项 Skill 脚本
+        run: |
+          python3 .codebuddy/skills/fleet-log-policy-check/scripts/check_business_rules.py \
+            --start --report business-check.json
+      - name: 上传核查证据
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: business-check
+          path: |
+            business-check.json
