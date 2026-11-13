@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>模拟车辆控制台</title>
+<style>
+  :root{--bg:#f5f6f8;--line:#dfe3e8;--pri:#2456d6;--ok:#12805c;--err:#c0341d;--muted:#6b7280}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.6 "Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:#1f2328}
+  header{background:#12203a;color:#fff;padding:10px 20px;display:flex;gap:14px;align-items:center}
+  header h1{font-size:15px;margin:0}
+  main{padding:16px 20px 50px;max-width:900px;margin:0 auto}
+  .card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+  .card h2{font-size:14px;margin:0 0 10px;border-left:3px solid var(--pri);padding-left:8px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+  input,select{padding:5px 7px;border:1px solid var(--line);border-radius:4px;font-size:13px}
+  .btn{border:1px solid var(--pri);background:var(--pri);color:#fff;padding:5px 12px;border-radius:5px;cursor:pointer;font-size:13px}
+  .btn.ghost{background:#fff;color:var(--pri)}
+  .btn.danger{background:#fff;color:var(--err);border-color:var(--err)}
+  pre{background:#0f172a;color:#d6e2ff;padding:10px;border-radius:6px;min-height:80px;font-size:12px;overflow:auto}
+  .muted{color:var(--muted);font-size:12px}
+  .msg{font-size:13px;margin-top:6px}
+  .msg.err{color:var(--err)}.msg.ok{color:var(--ok)}
+</style>
+</head>
+<body>
+<header><h1>模拟车辆控制台 · 题目 09</h1><a href="/web/index.html" style="color:#9fb3d9;font-size:12px">← 返回平台</a></header>
+<main>
+  <div class="card">
+    <h2>① 车辆身份</h2>
+    <div class="row">
+      <select id="vehicle" onchange="pick()"></select>
+      <span class="muted">凭证仅用于演示，实际由车端安全存储</span>
+    </div>
+    <div class="muted" id="credHint">—</div>
+  </div>
+
+  <div class="card">
+    <h2>② 拉取配置（只返回面向本车的最新已发布版本）</h2>
+    <div class="row">
+      <button class="btn" onclick="pull()">拉取配置</button>
+      <span class="muted">试点期未被选中的车辆拿不到活动版本</span>
+    </div>
+    <pre id="pullOut">尚未拉取</pre>
+  </div>
+
+  <div class="card">
+    <h2>③ 上报回执（版本号必须对应本车已发布版本）</h2>
+    <div class="row">
+      <input id="version" type="number" placeholder="版本号" style="width:110px">
+      <input id="reason" placeholder="失败原因（失败时必填）" style="min-width:240px" value="写入配置失败：本地存储只读">
+      <input id="requestKey" placeholder="请求编号（幂等演示）" style="width:180px">
+    </div>
+    <div class="row">
+      <button class="btn" onclick="receipt(true)">回执成功</button>
+      <button class="btn danger" onclick="receipt(false)">回执失败</button>
+      <button class="btn ghost" onclick="receipt(true)">重复回执（同版本再点一次成功）</button>
+    </div>
+    <div id="rcMsg" class="msg"></div>
+    <div class="muted">跨车回执演示：切换到另一台车，填入前一台车看到的版本号再提交，将被拒绝并留痕。</div>
+  </div>
+</main>
+<script>
+let vehicles = [];
+let cur = null;
+
+async function api(path, method = 'GET', body, token) {
+  const headers = {'Content-Type': 'application/json'};
+  if (token) headers['X-Vehicle-Token'] = token;
+  const res = await fetch('/api/v1' + path, {method, headers, body: body ? JSON.stringify(body) : undefined});
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + res.status));
+  return data.data;
+}
+function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function loadVehicles() {
+  vehicles = await api('/demo/vehicles');
+  document.getElementById('vehicle').innerHTML = vehicles.map(v => `<option value="${v.code}">${v.code} ${esc(v.name)}</option>`).join('');
+  pick();
+}
+function pick() {
+  const code = document.getElementById('vehicle').value;
+  cur = vehicles.find(v => v.code === code);
+  document.getElementById('credHint').textContent = '演示凭证：' + (cur ? cur.token : '—') + '（服务端按凭证解析车辆，不接受请求体中的车辆编号）';
+}
+async function pull() {
+  try {
+    const r = await api('/vehicle/config', 'GET', null, cur.Token);
+    document.getElementById('pullOut').textContent = JSON.stringify(r, null, 2);
+    document.getElementById('version').value = r.version || '';
+    document.getElementById('rcMsg').textContent = '';
+  } catch (e) { document.getElementById('pullOut').textContent = '拉取失败：' + e.message; }
+}
+async function receipt(success) {
+  const el = document.getElementById('rcMsg');
+  try {
+    const version = parseInt(document.getElementById('version').value, 10);
+    const reason = document.getElementById('reason').value;
+    const key = document.getElementById('requestKey').value || ('req-' + Date.now());
+    const r = await api('/vehicle/receipts', 'POST', {version, success, reason, request_key: key}, cur.Token);
+    el.className = 'msg ok';
+    el.textContent = r.message + (r.duplicate ? '（重复回执已幂等处理）' : '') + (r.ignored ? '（旧版本回执已忽略）' : '');
+  } catch (e) {
+    el.className = 'msg err';
+    el.textContent = '回执被拒绝：' + e.message;
+  }
+}
+loadVehicles().catch(e => { document.getElementById('credHint').textContent = e.message; });
+</script>
+</body>
+</html>
