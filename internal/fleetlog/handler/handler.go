@@ -3,6 +3,7 @@ package handler
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -366,6 +367,9 @@ func (h *Handler) audits(c *gin.Context) {
 }
 
 func (h *Handler) accounts(c *gin.Context) {
+	if !localOnly(c) {
+		return
+	}
 	list, err := h.svc.Accounts()
 	if err != nil {
 		fail(c, err)
@@ -385,6 +389,9 @@ func (h *Handler) accounts(c *gin.Context) {
 }
 
 func (h *Handler) vehicles(c *gin.Context) {
+	if !localOnly(c) {
+		return
+	}
 	list, err := h.svc.Vehicles()
 	if err != nil {
 		fail(c, err)
@@ -403,6 +410,21 @@ func idParam(c *gin.Context) (uint, bool) {
 		return 0, false
 	}
 	return uint(v), true
+}
+
+// localOnly 限制演示接口仅接受本机（回环地址）访问：演示凭据接口会返回预置令牌，
+// 若对任意来源开放，等于允许匿名取得各角色身份，违反"身份只认令牌"的约束。
+// 只使用 TCP 连接的对端地址判断，不信任 X-Forwarded-For（避免伪造头绕过）。
+func localOnly(c *gin.Context) bool {
+	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
+	if err != nil {
+		host = c.Request.RemoteAddr
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return true
+	}
+	fail(c, entity.Err("forbidden", "演示接口仅限本机访问"))
+	return false
 }
 
 // drainBody 在拒绝请求前消费未读请求体，避免服务端提前关闭连接导致客户端收不到错误响应。

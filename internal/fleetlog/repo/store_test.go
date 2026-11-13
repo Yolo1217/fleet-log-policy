@@ -151,6 +151,35 @@ func TestCampaignQueries(t *testing.T) {
 	}
 }
 
+// TestCompareAndSetCampaignStatus 锁定回归：后台 tick 用旧快照推进状态时不得覆盖请求路径的新状态。
+func TestCompareAndSetCampaignStatus(t *testing.T) {
+	store := newTestStore(t)
+	c := &model.Campaign{ApplicationID: 1, Status: "piloting", PilotVehicles: "TE-01,TE-02", FleetKey: "TE-FLEET-1"}
+	if err := store.CreateCampaign(nil, c); err != nil {
+		t.Fatalf("create campaign: %v", err)
+	}
+	// 请求路径先把活动推进到 pilot_ok
+	if ok, err := store.CompareAndSetCampaignStatus(c.ID, "piloting", "pilot_ok"); err != nil || !ok {
+		t.Fatalf("cas #1 应命中: %v %v", ok, err)
+	}
+	got, err := store.Campaign(c.ID)
+	if err != nil || got.Status != "pilot_ok" {
+		t.Fatalf("首次推进应生效: %v %+v", err, got)
+	}
+	// 旧快照（piloting）企图写 paused：必须失败且不改变库内状态
+	ok, err := store.CompareAndSetCampaignStatus(c.ID, "piloting", "paused")
+	if err != nil {
+		t.Fatalf("cas #2: %v", err)
+	}
+	if ok {
+		t.Fatal("旧快照不应命中")
+	}
+	got, err = store.Campaign(c.ID)
+	if err != nil || got.Status != "pilot_ok" {
+		t.Fatalf("旧快照不得覆盖新状态: %v %+v", err, got)
+	}
+}
+
 func TestApplicationAndReceiptCRUD(t *testing.T) {
 	store := newTestStore(t)
 	app := &model.Application{ApplicantID: 1, Reason: "排查抖动", Interval: 30, Status: "waiting", VersionNo: 1}

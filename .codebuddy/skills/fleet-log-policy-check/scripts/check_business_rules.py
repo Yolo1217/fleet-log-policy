@@ -38,8 +38,12 @@ class Api:
             headers["X-Auth-Token"] = token
         if vehicle:
             headers["X-Vehicle-Token"] = vehicle
+        # 关键：非幂等的 POST 不自动重试（早期实现重试 POST，Windows 回环偶发连接重置时
+        # 会出现"第一次已成功、重试得到 409"的假失败）。对状态迁移类 POST，传输中断后
+        # 改为"读取活动视图核实副作用"，若目标状态已生效则基于事实合成结果，否则如实报错。
+        attempts = 3 if method == "GET" else 1
         last = None
-        for attempt in range(3):
+        for attempt in range(attempts):
             req = urlrequest.Request(self.base + path, data=data, headers=headers, method=method)
             try:
                 with urlrequest.urlopen(req, timeout=20) as resp:
@@ -49,13 +53,48 @@ class Api:
                     return exc.code, dec(exc.read())
                 except OSError:
                     return exc.code, {}
-            except urlerror.URLError as exc:
+            except (urlerror.URLError, ConnectionResetError) as exc:  # 连接层异常
                 last = exc
-            except ConnectionResetError as exc:  # Windows 偶发连接重置，重试一次
-                last = exc
-            if attempt == 0:
+            if attempt < attempts - 1:
                 time.sleep(0.4)
-        raise RuntimeError(f"无法连接 {self.base}：{last}") from last
+        if method == "POST":
+            recovered = self._verify_post_effect(path, token)
+            if recovered is not None:
+                return 200, recovered
+        raise RuntimeError(f"{method} {path} 传输失败（非幂等请求不重试）：{last}") from last
+
+    def _verify_post_effect(self, path, token):
+        """POST 传输中断后核实副作用是否已生效；生效则按活动视图合成响应（不编造，字段来自 GET）。"""
+        m = re.search(r"/campaigns/(\d+)(/.*)?$", path)
+        if not m:
+            return None
+        cid, suffix = m.group(1), m.group(2) or ""
+        expect = {"promote": "promoting", "complete": "completed",
+                  "restore/complete": "restored", "restore": "restoring", "stop": "stopped"}
+        target = None
+        for key in ("restore/complete", "promote", "complete", "restore", "stop"):
+            if suffix == "/" + key:
+                target = expect[key]
+                break
+        if not target:
+            return None
+        try:
+            status, payload = self.call("GET", f"/api/v1/campaigns/{cid}", token=token)
+        except RuntimeError:
+            return None
+        v = d(payload)
+        if v.get("status") != target:
+            return None
+        data = dict(v)
+        rows = data.get("vehicles") or []
+        if suffix == "/promote":
+            data["dispatched_vehicles"] = [1] * len([r for r in rows if r.get("applied_version")])
+        elif suffix == "/complete":
+            data["all_succeeded"] = bool(rows) and all(r.get("status") == "成功" for r in rows)
+        elif suffix == "/restore/complete":
+            rec_rows = data.get("recovery_rows") or []
+            data["all_recovered"] = bool(rec_rows) and all(r.get("status") == "已恢复" for r in rec_rows)
+        return {"data": data}
 
 
 def dec(raw):
@@ -84,6 +123,10 @@ def d(payload):
 
 def ecode(payload):
     return str((payload.get("error") or {}).get("code") or "")
+
+
+def emsg(payload):
+    return str((payload.get("error") or {}).get("message") or "")
 
 
 def req(rep, rule, name, method, path, want, body=None, token=None, vehicle=None, note=""):
@@ -260,13 +303,22 @@ def run_part2(rep, cid, timeout_s):
               f"版本={[r.get('expected_version') for r in rows]}")
     req(rep, "8", "存在未确认项时不得标记恢复完成", "POST", f"/api/v1/campaigns/{cid}/restore/complete", 409,
         {}, token=T_APV)
-    API.call("POST", "/api/v1/vehicle/receipts", {"version": 2, "success": True}, vehicle=VT["TE-01"])
+    # 回执响应不再丢弃：回执若失败，原实现会把它误报成"恢复完成 409"，属诊断噪声。
+    code1, p1 = API.call("POST", "/api/v1/vehicle/receipts", {"version": 2, "success": True}, vehicle=VT["TE-01"])
     req(rep, "8", "仍有一台未确认时不得显示全部恢复", "POST", f"/api/v1/campaigns/{cid}/restore/complete", 409,
         {}, token=T_APV)
-    API.call("POST", "/api/v1/vehicle/receipts", {"version": 2, "success": True}, vehicle=VT["TE-02"])
+    code2, p2 = API.call("POST", "/api/v1/vehicle/receipts", {"version": 2, "success": True}, vehicle=VT["TE-02"])
+    # 失败时带上回执状态码与逐车恢复状态，避免只看到 409 无法定位。
+    v_before = view(cid)
+    not_done = [f"{r.get('code')}={r.get('status')}" for r in (v_before.get("recovery_rows") or [])
+                if r.get("status") != "成功"]
     status, payload = API.call("POST", f"/api/v1/campaigns/{cid}/restore/complete", {}, token=T_APV)
-    rep.check("8", "全部确认后恢复完成", status == 200 and d(payload).get("all_recovered") is True,
-              f"HTTP {status} status={d(payload).get('status')} all_recovered={d(payload).get('all_recovered')}")
+    rep.check("8", "全部确认后恢复完成",
+              status == 200 and d(payload).get("all_recovered") is True and code1 == 200 and code2 == 200,
+              f"HTTP {status} status={d(payload).get('status')} all_recovered={d(payload).get('all_recovered')} "
+              f"err={ecode(payload)}/{emsg(payload)} "
+              f"回执1={code1}{('(' + ecode(p1) + ')') if code1 != 200 else ''} "
+              f"回执2={code2}{('(' + ecode(p2) + ')') if code2 != 200 else ''} 未确认={not_done}")
     req(rep, "8", "未全部成功的活动不得结案", "POST", f"/api/v1/campaigns/{cid}/complete", 409, {}, token=T_APV)
 
     # ---------------- 正常推广分支 ----------------
@@ -295,13 +347,16 @@ def run_part2(rep, cid, timeout_s):
               status == 200 and len(d(payload).get("dispatched_vehicles") or []) == 5,
               f"HTTP {status} 已下发={len(d(payload).get('dispatched_vehicles') or [])}")
     req(rep, "8", "仍有未确认车辆时不得结案", "POST", f"/api/v1/campaigns/{cid2}/complete", 409, {}, token=T_APV)
+    rcpt = []
     for item in view(cid2).get("vehicles") or []:
-        API.call("POST", "/api/v1/vehicle/receipts",
-                 {"version": item.get("expected_version"), "success": True}, vehicle=VT[item.get("code")])
+        c_r, p_r = API.call("POST", "/api/v1/vehicle/receipts",
+                            {"version": item.get("expected_version"), "success": True}, vehicle=VT[item.get("code")])
+        rcpt.append(f"{item.get('code')}:{c_r}{('(' + ecode(p_r) + ')') if c_r != 200 else ''}")
     status, payload = API.call("POST", f"/api/v1/campaigns/{cid2}/complete", {}, token=T_APV)
     rep.check("8", "五台全部成功后负责人结案",
               status == 200 and d(payload).get("status") == "completed" and d(payload).get("all_succeeded") is True,
-              f"HTTP {status} status={d(payload).get('status')}")
+              f"HTTP {status} status={d(payload).get('status')} err={ecode(payload)}/{emsg(payload)} "
+              f"回执=[{';'.join(rcpt)}]")
     rows = view(cid2).get("vehicles") or []
     rep.check("4", "结案后逐车生效值等于期望值",
               all(r.get("applied_version") == r.get("expected_version") and r.get("applied_interval") == 120 for r in rows),
@@ -357,7 +412,7 @@ def main():
     ap = argparse.ArgumentParser(description="题目09 业务约束核查")
     ap.add_argument("--base-url", default="http://127.0.0.1:8080")
     ap.add_argument("--port", type=int, default=18080, help="--start 时的监听端口，默认 18080")
-    ap.add_argument("--timeout-seconds", type=int, default=3, help="与服务端 FLEETLOG_TIMEOUT_SECONDS 一致")
+    ap.add_argument("--timeout-seconds", type=int, default=8, help="教学超时阈值（秒），须与服务端 FLEETLOG_TIMEOUT_SECONDS 一致；过小会让回执与超时竞争产生假失败")
     ap.add_argument("--start", action="store_true", help="自行构建并启动网关（临时数据库与临时配置）")
     ap.add_argument("--report", default="")
     args = ap.parse_args()

@@ -63,27 +63,28 @@ func (s *Service) reconcileCampaigns() error {
 			return err
 		}
 		activity := filterKind(releases, entity.KindActivity)
-		switch c.Status {
+		from := c.Status
+		to := ""
+		switch from {
 		case entity.CampaignPiloting:
 			pilot := pickByCodes(activity, vehicles, repo.SplitCSV(c.PilotVehicles))
 			if allStatus(pilot, entity.ReleaseSucceeded) {
-				c.Status = entity.CampaignPilotOK
+				to = entity.CampaignPilotOK
 			} else if anyStatus(pilot, entity.ReleaseTimeout) || anyStatus(pilot, entity.ReleaseFailed) {
-				c.Status = entity.CampaignPaused
-			} else {
-				// 状态无变化时不回写：后台 tick 的旧快照会覆盖请求路径刚写入的状态（丢失更新）。
-				continue
+				to = entity.CampaignPaused
 			}
 		case entity.CampaignPromoting:
 			if len(activity) == 5 && allStatus(activity, entity.ReleaseSucceeded) {
-				c.Status = entity.CampaignPendingEnd
-			} else {
-				continue
+				to = entity.CampaignPendingEnd
 			}
-		default:
+		}
+		if to == "" {
+			// 状态无变化时不回写：直接 Save 会用 tick 开头的旧快照覆盖请求路径刚写入的状态。
 			continue
 		}
-		if err := s.store.UpdateCampaign(nil, &c); err != nil {
+		// 条件更新：即使本 tick 读到的是旧快照，也只有当库内状态仍未变化时才推进，
+		// 避免把 piloting→paused 的判定写到已经进入 pilot_ok/restoring/promoting 的活动上。
+		if _, err := s.store.CompareAndSetCampaignStatus(c.ID, from, to); err != nil {
 			return err
 		}
 	}
