@@ -21,3 +21,6 @@ docs/superpowers/
 # 覆盖率与核查产物
 coverage.out
 business-check.json
+
+# 部署制品与运行日志（部署记录 docs/evidence/deploy-*.md 入库）
+deploy/releases/

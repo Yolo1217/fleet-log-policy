@@ -71,7 +71,7 @@ func main() {
 		}
 	}()
 
-	addr := fmt.Sprintf("%s:%d", cfg.HTTP.Host, cfg.HTTP.Port)
+	addr := fmt.Sprintf("%s:%d", cfg.HTTP.Host, httpPort(cfg.HTTP.Port))
 	server := &http.Server{
 		Addr:         addr,
 		Handler:      engine,
@@ -124,6 +124,16 @@ func openStore(cfg *config.Config, log *zap.Logger) (*repo.Store, error) {
 		return nil, err
 	}
 	return repo.New(db)
+}
+
+// httpPort 返回监听端口；可用 FLEETLOG_HTTP_PORT 覆盖（部署脚本用于避开本机已占用端口）。
+func httpPort(fallback int) int {
+	if v := strings.TrimSpace(os.Getenv("FLEETLOG_HTTP_PORT")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n < 65536 {
+			return n
+		}
+	}
+	return fallback
 }
 
 // timeoutSeconds 返回教学超时阈值（题面 60 秒；演示可用 FLEETLOG_TIMEOUT_SECONDS 缩短并须注明）。
