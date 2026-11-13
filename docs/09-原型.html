@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>题目09 原型 - 车队日志策略申请、审批、分批发布与结果核查</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --line:#dfe3e8; --pri:#2456d6; --ok:#12805c; --warn:#b26a00; --err:#c0341d; --muted:#6b7280; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.6 "Microsoft YaHei",system-ui,sans-serif; background:var(--bg); color:#1f2328; }
+  header { background:#12203a; color:#fff; padding:12px 20px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  header .tag { background:#2b3f68; color:#c9d6ff; padding:2px 8px; border-radius:10px; font-size:12px; }
+  nav { display:flex; gap:4px; padding:10px 20px 0; flex-wrap:wrap; background:#fff; border-bottom:1px solid var(--line); }
+  nav button { border:1px solid var(--line); border-bottom:none; background:#eef1f5; padding:8px 14px; border-radius:6px 6px 0 0; cursor:pointer; font-size:13px; color:#333; }
+  nav button.on { background:#fff; color:var(--pri); font-weight:600; border-color:var(--line); position:relative; top:1px; }
+  main { padding:16px 20px 40px; }
+  section { display:none; }
+  section.on { display:block; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin-bottom:14px; }
+  .card h2 { font-size:14px; margin:0 0 10px; color:#12203a; border-left:3px solid var(--pri); padding-left:8px; }
+  .roles { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .roles label { border:1px solid var(--line); padding:4px 10px; border-radius:14px; cursor:pointer; font-size:12px; background:#fff; }
+  .roles input { display:none; }
+  .roles input:checked + span { color:var(--pri); font-weight:600; }
+  .roles label:has(input:checked) { border-color:var(--pri); background:#eef3ff; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
+  th { background:#f0f3f7; font-weight:600; white-space:nowrap; }
+  .btn { border:1px solid var(--pri); background:var(--pri); color:#fff; padding:6px 14px; border-radius:5px; cursor:pointer; font-size:13px; }
+  .btn.ghost { background:#fff; color:var(--pri); }
+  .btn.danger { background:#fff; color:var(--err); border-color:var(--err); }
+  .btn:disabled { opacity:.45; cursor:not-allowed; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; border:1px solid; }
+  .b-wait { color:var(--muted); border-color:var(--muted); background:#f3f4f6; }
+  .b-ok { color:var(--ok); border-color:var(--ok); background:#e8f7f1; }
+  .b-warn { color:var(--warn); border-color:var(--warn); background:#fff6e5; }
+  .b-err { color:var(--err); border-color:var(--err); background:#fdecea; }
+  .b-info { color:var(--pri); border-color:var(--pri); background:#eef3ff; }
+  .muted { color:var(--muted); font-size:12px; }
+  .flow { font-size:12px; color:#374151; background:#f7f9fc; border:1px dashed var(--line); padding:8px 10px; border-radius:6px; }
+  .flow b.cur { color:var(--pri); }
+  .kv { display:grid; grid-template-columns:120px 1fr; gap:4px 10px; font-size:13px; }
+  .log { font-family:Consolas,monospace; font-size:12px; background:#0f172a; color:#d6e2ff; padding:10px; border-radius:6px; max-height:180px; overflow:auto; }
+  .note { background:#fffbea; border:1px solid #f0d38a; padding:8px 10px; border-radius:6px; font-size:12px; color:#6b4e00; }
+</style>
+</head>
+<body>
+<header>
+  <h1>车队日志策略平台 · 交互原型</h1>
+  <span class="tag">题目 09</span>
+  <span class="tag">静态演示原型：非真实业务，仅用于确认页面与状态</span>
+</header>
+
+<nav>
+  <button class="on" data-tab="apply">① 申请与审批</button>
+  <button data-tab="rollout">② 试点与推广操作</button>
+  <button data-tab="vehicles">③ 逐车进度核查</button>
+  <button data-tab="recover">④ 恢复结果</button>
+  <button data-tab="audit">⑤ 异常留痕</button>
+</nav>
+
+<main>
+  <!-- ① 申请与审批 -->
+  <section id="apply" class="on">
+    <div class="roles">
+      当前角色（原型切换用）：
+      <label><input type="radio" name="role1" checked><span>研发申请人</span></label>
+      <label><input type="radio" name="role1"><span>审批负责人</span></label>
+    </div>
+
+    <div class="card">
+      <h2>新建申请（申请人）</h2>
+      <div class="kv">
+        <span>排查原因</span><input id="reason" value="排查 AEB 误触发，需提升诊断日志频率" style="padding:4px 6px;border:1px solid var(--line);border-radius:4px">
+        <span>目标车辆</span><span>TE-01、TE-02（试点）／TE-03、TE-04、TE-05（推广）<span class="muted">（固定车队 5 台，试点 2 台由运营在发起时指定）</span></span>
+        <span>日志上报间隔</span><input id="interval" type="number" value="30" style="width:90px;padding:4px 6px;border:1px solid var(--line);border-radius:4px"> 秒 <span class="muted">（10～300 整数）</span>
+      </div>
+      <div class="row">
+        <button class="btn" onclick="submitApply()">提交申请</button>
+        <span id="applyMsg" class="muted">校验：原因必填、5 台车辆、间隔 10～300 整数；审批人不能是申请人</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>申请列表与审批（负责人）</h2>
+      <table>
+        <thead><tr><th>申请编号</th><th>原因</th><th>间隔</th><th>状态</th><th>历史版本</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>AP-0001</td><td>排查 AEB 误触发</td><td>30 秒</td>
+            <td><span id="apStatus" class="badge b-wait">待审批</span></td>
+            <td class="muted">v1（退回后修改：60→30 秒）</td>
+            <td>
+              <button class="btn ghost" onclick="approve(true)">批准</button>
+              <button class="btn danger" onclick="approve(false)">退回</button>
+              <span id="approveMsg" class="muted"></span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">已批准后参数不可原地修改；如需变更只能重新提交。<br>边界：申请人=审批人 → 审批按钮置灰并提示“审批人不能是申请人”。</div>
+    </div>
+  </section>
+
+  <!-- ② 试点与推广 -->
+  <section id="rollout">
+    <div class="card">
+      <h2>发布活动（运营）</h2>
+      <div class="flow">已批准（未发布） → 试点中(2台) → 试点成功 → 推广中(3台) → 待结案 → 已完成　｜　异常：试点失败/超时 → 已暂停 → 负责人决定 → 已停止 → 恢复中 → 已恢复</div>
+      <div class="row" style="margin-top:10px">
+        当前阶段：<span id="campStage" class="badge b-info">已批准（未发布）</span>
+      </div>
+      <div class="row">
+        <button class="btn" id="btnPilot" onclick="startPilot()">发起试点（选 TE-01、TE-02）</button>
+        <button class="btn ghost" id="btnPilotOk" onclick="pilotOk()" disabled>模拟：两台试点均回执成功</button>
+        <button class="btn ghost" id="btnPilotFail" onclick="pilotFail()" disabled>模拟：试点车超时</button>
+        <button class="btn ghost" id="btnPromote" onclick="promote()" disabled>确认推广（TE-03～TE-05）</button>
+        <button class="btn danger" id="btnStop" onclick="stopCamp()">负责人决定停止</button>
+        <button class="btn ghost" id="btnRestore" onclick="approveRestore()">负责人批准恢复</button>
+      </div>
+      <div id="rolloutMsg" class="muted"></div>
+      <div class="note">试点未完成时点击“确认推广” → 拒绝并留痕（见⑤）。试点期间 TE-03～TE-05 拉取配置仅返回其当前生效版本。</div>
+    </div>
+
+    <div class="card">
+      <h2>试点结果（2 台）</h2>
+      <table>
+        <thead><tr><th>车辆</th><th>版本</th><th>期望间隔</th><th>结果</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>TE-01</td><td>v1</td><td>30 秒</td><td><span class="badge b-ok">回执成功</span></td><td>已生效 30 秒</td></tr>
+          <tr><td>TE-02</td><td>v1</td><td>30 秒</td><td><span class="badge b-warn">超时（60 秒无回执）</span></td><td>离线车，后可迟到回执</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ③ 逐车进度 -->
+  <section id="vehicles">
+    <div class="card">
+      <h2>逐车发布与生效核查（任意时点）</h2>
+      <table>
+        <thead><tr><th>车辆</th><th>活动前值</th><th>当前期望值（版本/间隔）</th><th>已生效值（版本/间隔）</th><th>状态</th><th>失败/超时原因</th><th>下发时间</th><th>回执时间</th></tr></thead>
+        <tbody>
+          <tr><td>TE-01</td><td>60 秒</td><td>v1 / 30 秒</td><td>v1 / 30 秒</td><td><span class="badge b-ok">成功</span></td><td>—</td><td>09:41:10</td><td>09:41:24</td></tr>
+          <tr><td>TE-02</td><td>60 秒</td><td>v1 / 30 秒</td><td>— / 60 秒</td><td><span class="badge b-warn">超时</span></td><td>离线，60 秒未回执（超时历史保留）</td><td>09:41:10</td><td>—</td></tr>
+          <tr><td>TE-03</td><td>60 秒</td><td>v2 / 30 秒</td><td>— / 60 秒</td><td><span class="badge b-err">失败</span></td><td>写入配置失败：本地存储只读</td><td>09:52:03</td><td>09:52:19</td></tr>
+          <tr><td>TE-04</td><td>60 秒</td><td>v4 / 30 秒</td><td>v2 / 30 秒</td><td><span class="badge b-warn">未确认</span></td><td>旧版本 v2 回执，晚到；v4 待回执</td><td>09:52:03</td><td>—</td></tr>
+          <tr><td>TE-05</td><td>60 秒</td><td>—（未下发）</td><td>— / 60 秒</td><td><span class="badge b-wait">待下发</span></td><td>活动已停止，未发送部分不再下发</td><td>—</td><td>—</td></tr>
+        </tbody>
+      </table>
+      <div class="note">规则：已下发 ≠ 已生效。期望值与生效值分列保存；失败不改生效值；旧版本回执不得覆盖新生效值；60 秒无有效回执显示超时（演示用教学时钟可缩短，须注明）。</div>
+    </div>
+
+    <div class="card">
+      <h2>车辆视角（模拟车辆拉取）</h2>
+      <div class="row">
+        <select id="vehSel" style="padding:5px 8px;border:1px solid var(--line);border-radius:4px">
+          <option>TE-01</option><option>TE-02</option><option>TE-03</option><option>TE-04</option><option>TE-05</option>
+        </select>
+        <button class="btn ghost" onclick="pull()">拉取我的最新已发布版本</button>
+      </div>
+      <div id="pullOut" class="muted"></div>
+    </div>
+  </section>
+
+  <!-- ④ 恢复结果 -->
+  <section id="recover">
+    <div class="card">
+      <h2>恢复下发结果（停止活动后由负责人批准）</h2>
+      <table>
+        <thead><tr><th>车辆</th><th>恢复目标（活动前值）</th><th>恢复版本</th><th>恢复后生效值</th><th>结果</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>TE-01</td><td>60 秒</td><td>v2</td><td>v2 / 60 秒</td><td><span class="badge b-ok">已恢复</span></td><td>回执确认</td></tr>
+          <tr><td>TE-03</td><td>60 秒</td><td>v3</td><td>— / 60 秒</td><td><span class="badge b-err">恢复失败</span></td><td>车端拒绝：配置签名校验失败</td></tr>
+          <tr><td>TE-04</td><td>60 秒</td><td>v5</td><td>v2 / 30 秒</td><td><span class="badge b-warn">未确认</span></td><td>恢复版本已下发，未收到回执</td></tr>
+        </tbody>
+      </table>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" disabled>标记活动“已完成”</button>
+        <button class="btn" disabled>标记“全部恢复”</button>
+        <span class="muted">存在未确认/失败车辆时按钮置灰，不得显示“全部恢复”。</span>
+      </div>
+      <div class="note">恢复是新版本下发（版本号继续递增），不是撤销历史记录；已停止仅阻止未发送部分继续下发。</div>
+    </div>
+  </section>
+
+  <!-- ⑤ 异常留痕 -->
+  <section id="audit">
+    <div class="card">
+      <h2>异常与拒绝操作留痕（负责人 / 运营查询）</h2>
+      <table>
+        <thead><tr><th>时间</th><th>类型</th><th>主体</th><th>处理结果</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>09:50:12</td><td>越权推广</td><td>运营</td><td><span class="badge b-err">拒绝</span></td><td>试点未完成（TE-02 超时）仍尝试推广，已留痕</td></tr>
+          <tr><td>09:53:01</td><td>重复回执</td><td>TE-01 / v1</td><td><span class="badge b-info">幂等忽略</span></td><td>同车同版本第 2 次成功回执，不重复记账</td></tr>
+          <tr><td>09:54:40</td><td>旧版本回执</td><td>TE-04 / v2</td><td><span class="badge b-warn">记录不改生效值</span></td><td>当前期望 v4，v2 回执仅留审计</td></tr>
+          <tr><td>09:55:22</td><td>跨车回执</td><td>TE-05 回执 TE-01 版本</td><td><span class="badge b-err">拒绝</span></td><td>(车辆, 版本) 不匹配</td></tr>
+          <tr><td>09:56:03</td><td>未知版本</td><td>TE-02 / v9</td><td><span class="badge b-err">拒绝</span></td><td>该车不存在 v9 发布记录</td></tr>
+          <tr><td>09:57:15</td><td>未鉴权</td><td>匿名请求</td><td><span class="badge b-err">拒绝</span></td><td>缺失车辆凭证</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>操作日志（原型交互记录）</h2>
+      <div id="logBox" class="log">[prototype] 尚未产生交互</div>
+    </div>
+  </section>
+</main>
+
+<script>
+  // 页签切换
+  document.querySelectorAll('nav button').forEach(function (b) {
+    b.onclick = function () {
+      document.querySelectorAll('nav button').forEach(function (x) { x.classList.remove('on'); });
+      document.querySelectorAll('main section').forEach(function (s) { s.classList.remove('on'); });
+      b.classList.add('on');
+      document.getElementById(b.dataset.tab).classList.add('on');
+    };
+  });
+
+  function log(msg) {
+    var box = document.getElementById('logBox');
+    if (box.textContent.indexOf('尚未产生交互') >= 0) box.textContent = '';
+    var t = new Date().toTimeString().slice(0, 8);
+    box.textContent += '[' + t + '] ' + msg + '\n';
+  }
+
+  function submitApply() {
+    var v = parseInt(document.getElementById('interval').value, 10);
+    var msg = document.getElementById('applyMsg');
+    if (!document.getElementById('reason').value.trim()) { msg.textContent = '校验失败：排查原因必填'; return; }
+    if (!(v >= 10 && v <= 300)) { msg.textContent = '校验失败：间隔须为 10～300 的整数'; return; }
+    msg.textContent = '已提交申请 AP-0002（待审批），审批人不能是申请人';
+    log('提交申请 AP-0002，间隔 ' + v + ' 秒');
+  }
+
+  function approve(ok) {
+    var s = document.getElementById('apStatus');
+    if (ok) {
+      s.className = 'badge b-ok'; s.textContent = '已批准（参数锁定）';
+      document.getElementById('approveMsg').textContent = '已批准，生成发布活动 CMP-0001';
+      log('AP-0001 批准 → 活动未发布');
+    } else {
+      s.className = 'badge b-err'; s.textContent = '已退回';
+      document.getElementById('approveMsg').textContent = '已退回，申请人可修改后再提交（保留历史版本）';
+      log('AP-0001 退回');
+    }
+  }
+
+  var stage = 'approved';
+  function setStage(text, cls) {
+    var el = document.getElementById('campStage');
+    el.textContent = text; el.className = 'badge ' + cls;
+  }
+  function startPilot() {
+    stage = 'pilot';
+    setStage('试点中（TE-01、TE-02）', 'b-info');
+    document.getElementById('btnPilot').disabled = true;
+    document.getElementById('btnPromote').disabled = true;
+    document.getElementById('btnPilotOk').disabled = false;
+    document.getElementById('btnPilotFail').disabled = false;
+    document.getElementById('rolloutMsg').textContent = '试点下发中：TE-01 在线；TE-02 离线（60 秒超时判定）。可分别演示成功与超时两条分支。';
+    log('发起试点：TE-01、TE-02 v1 / 30 秒');
+  }
+  function pilotOk() {
+    if (stage !== 'pilot') return;
+    stage = 'pilotOk';
+    setStage('试点成功（2/2）', 'b-ok');
+    document.getElementById('btnPilotOk').disabled = true;
+    document.getElementById('btnPilotFail').disabled = true;
+    document.getElementById('btnPromote').disabled = false;
+    document.getElementById('rolloutMsg').textContent = '两台试点均回执成功，可确认推广剩余 3 台';
+    log('试点结果：TE-01、TE-02 均成功 → 可推广');
+  }
+  function pilotFail() {
+    if (stage !== 'pilot') return;
+    stage = 'paused';
+    setStage('已暂停（试点车超时）', 'b-warn');
+    document.getElementById('btnPilotOk').disabled = true;
+    document.getElementById('btnPilotFail').disabled = true;
+    document.getElementById('rolloutMsg').textContent = 'TE-02 超时 → 暂停推进，不能推广；负责人可决定停止';
+    log('试点超时：TE-02 60 秒无回执 → 已暂停');
+  }
+  function promote() {
+    if (stage !== 'pilotOk') {
+      document.getElementById('rolloutMsg').textContent = '拒绝：试点未全部成功，不能推广（已留痕）';
+      log('拒绝推广：试点未完成');
+      return;
+    }
+    stage = 'promote';
+    setStage('推广中（TE-03～TE-05）', 'b-info');
+    document.getElementById('rolloutMsg').textContent = '已向剩余 3 台下发 v2～v4 / 30 秒';
+    log('确认推广：TE-03、TE-04、TE-05');
+  }
+  function stopCamp() {
+    stage = 'stopped';
+    setStage('已停止', 'b-err');
+    document.getElementById('btnPilot').disabled = true;
+    document.getElementById('btnPromote').disabled = true;
+    document.getElementById('btnStop').disabled = true;
+    document.getElementById('btnRestore').disabled = false;
+    document.getElementById('rolloutMsg').textContent = '已停止：仅阻止未发送部分；已发/已生效记录保留';
+    log('负责人停止活动：保留已发与未发范围');
+  }
+  function approveRestore() {
+    stage = 'restoring';
+    setStage('恢复中', 'b-warn');
+    document.getElementById('btnRestore').disabled = true;
+    document.getElementById('rolloutMsg').textContent = '恢复下发：为曾发布过的车辆创建更高版本，目标=活动前 60 秒';
+    log('批准恢复：TE-01 v2 / TE-03 v3 / TE-04 v5');
+  }
+  function pull() {
+    var v = document.getElementById('vehSel').value;
+    var map = { 'TE-01': 'v1 / 30 秒（已生效）', 'TE-02': 'v1 / 30 秒（期望，未回执）', 'TE-03': 'v2 / 30 秒（失败，仍为 60 秒）', 'TE-04': 'v4 / 30 秒（未确认）', 'TE-05': '无活动版本，返回当前生效 60 秒' };
+    document.getElementById('pullOut').textContent = v + ' 拉取结果：' + map[v] + '（仅返回面向本车的最新已发布版本）';
+    log(v + ' 拉取配置：' + map[v]);
+  }
+</script>
+</body>
+</html>

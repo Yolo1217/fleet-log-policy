@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>车队日志策略平台</title>
+<style>
+  :root{--bg:#f5f6f8;--card:#fff;--line:#dfe3e8;--pri:#2456d6;--ok:#12805c;--warn:#b26a00;--err:#c0341d;--muted:#6b7280}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.6 "Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:#1f2328}
+  header{background:#12203a;color:#fff;padding:10px 20px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  header h1{font-size:15px;margin:0}
+  header select{padding:4px 8px;border-radius:4px;border:0;font-size:13px}
+  main{padding:16px 20px 50px;max-width:1280px;margin:0 auto}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+  .card h2{font-size:14px;margin:0 0 10px;border-left:3px solid var(--pri);padding-left:8px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{border:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top}
+  th{background:#f0f3f7;white-space:nowrap}
+  .btn{border:1px solid var(--pri);background:var(--pri);color:#fff;padding:5px 12px;border-radius:5px;cursor:pointer;font-size:13px}
+  .btn.ghost{background:#fff;color:var(--pri)}
+  .btn.danger{background:#fff;color:var(--err);border-color:var(--err)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+  input,select,textarea{padding:5px 7px;border:1px solid var(--line);border-radius:4px;font-size:13px;font-family:inherit}
+  .badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;border:1px solid var(--muted);color:var(--muted);background:#f3f4f6}
+  .badge.ok{color:var(--ok);border-color:var(--ok);background:#e8f7f1}
+  .badge.warn{color:var(--warn);border-color:var(--warn);background:#fff6e5}
+  .badge.err{color:var(--err);border-color:var(--err);background:#fdecea}
+  .badge.info{color:var(--pri);border-color:var(--pri);background:#eef3ff}
+  .muted{color:var(--muted);font-size:12px}
+  .msg{margin-top:6px;font-size:13px}
+  .msg.err{color:var(--err)}.msg.ok{color:var(--ok)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+  .kv{display:grid;grid-template-columns:96px 1fr;gap:4px 8px;font-size:13px}
+  pre{background:#0f172a;color:#d6e2ff;padding:10px;border-radius:6px;max-height:200px;overflow:auto;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>测试车队日志策略平台 · 题目 09</h1>
+  <span class="muted" style="color:#9fb3d9">当前身份：</span>
+  <select id="identity" onchange="switchRole()"></select>
+  <span class="muted" style="color:#9fb3d9">教学超时阈值：<b id="timeoutNote">60</b> 秒（可在服务端通过 FLEETLOG_TIMEOUT_SECONDS 缩短并注明）</span>
+  <a href="/web/vehicle.html" style="color:#9fb3d9;font-size:12px">模拟车辆控制台 →</a>
+</header>
+<main>
+  <div id="toast" class="msg"></div>
+
+  <div class="card">
+    <h2>① 配置申请（研发申请人）</h2>
+    <div class="row">
+      <input id="reason" placeholder="排查原因（必填）" style="min-width:320px" value="排查 AEB 误触发，提升非安全诊断日志频率">
+      <input id="interval" type="number" value="30" style="width:90px"> 秒
+      <button class="btn" onclick="createApp()">提交申请</button>
+      <span class="muted">间隔 10～300 整数秒；车队固定 5 台；审批人不能是申请人</span>
+    </div>
+    <table>
+      <thead><tr><th>编号</th><th>申请人</th><th>原因</th><th>间隔</th><th>版本</th><th>状态</th><th>关联活动</th><th>操作</th></tr></thead>
+      <tbody id="appRows"><tr><td colspan="8" class="muted">加载中…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>② 发布活动操作（运营发起试点/推广，负责人停止/恢复/结案）</h2>
+    <div class="kv" id="campSummary"><span>状态</span><span class="muted">暂无活动</span></div>
+    <div class="row">
+      <label class="muted">试点车辆：</label>
+      <select id="pilot1"></select>
+      <select id="pilot2"></select>
+      <button class="btn" onclick="startPilot()">发起试点（2 台）</button>
+      <button class="btn ghost" onclick="promote()">确认推广（剩余 3 台）</button>
+    </div>
+    <div class="row">
+      <input id="stopReason" placeholder="停止原因（负责人）" style="min-width:220px" value="试点车离线，暂停推进">
+      <button class="btn danger" onclick="stopCamp()">负责人停止活动</button>
+      <button class="btn ghost" onclick="restore()">负责人批准恢复</button>
+      <button class="btn ghost" onclick="complete()">负责人记为完成</button>
+      <button class="btn ghost" onclick="completeRestore()">确认恢复完成</button>
+    </div>
+    <div id="campMsg" class="msg"></div>
+    <div class="muted">已下发车辆：<span id="dispatched">—</span>　未下发车辆：<span id="undispatched">—</span></div>
+  </div>
+
+  <div class="card">
+    <h2>③ 逐车核查（发布前值 / 期望值 / 生效值 / 状态 / 原因）</h2>
+    <table>
+      <thead><tr><th>车辆</th><th>活动前值</th><th>期望值（版本/间隔）</th><th>生效值（版本/间隔）</th><th>状态</th><th>失败或超时原因</th><th>下发时间</th><th>回执时间</th></tr></thead>
+      <tbody id="vehicleRows"><tr><td colspan="8" class="muted">暂无活动</td></tr></tbody>
+    </table>
+    <div class="muted" style="margin-top:6px">规则：已下发 ≠ 已生效；失败不改变此前生效值；超时后当前版本迟到成功可更新结果并保留超时历史。</div>
+  </div>
+
+  <div class="card">
+    <h2>④ 恢复结果（区分已恢复与未确认）</h2>
+    <table>
+      <thead><tr><th>车辆</th><th>恢复目标（活动前值）</th><th>恢复版本</th><th>恢复后生效值</th><th>结果</th><th>说明</th></tr></thead>
+      <tbody id="recoveryRows"><tr><td colspan="6" class="muted">尚未发起恢复</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>⑤ 异常留痕与审计</h2>
+    <div class="grid">
+      <div>
+        <div class="muted">异常记录（越权、跨车、未知版本、旧版本、重复回执等）</div>
+        <table><thead><tr><th>时间</th><th>类型</th><th>车辆</th><th>说明</th></tr></thead><tbody id="excRows"><tr><td colspan="4" class="muted">加载中…</td></tr></tbody></table>
+      </div>
+      <div>
+        <div class="muted">操作审计</div>
+        <table><thead><tr><th>时间</th><th>操作者</th><th>动作</th><th>对象</th></tr></thead><tbody id="auditRows"><tr><td colspan="4" class="muted">加载中…</td></tr></tbody></table>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+let accounts = [];
+let current = null;
+let campaignId = 0;
+
+function toast(text, ok) {
+  const el = document.getElementById('toast');
+  el.textContent = text;
+  el.className = 'msg ' + (ok === false ? 'err' : 'ok');
+  setTimeout(() => { el.textContent = ''; }, 5000);
+}
+function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fmt(t) { return t ? new Date(t).toLocaleString('zh-CN', {hour12:false}) : '—'; }
+function badge(status) {
+  const map = {'成功':'ok','已恢复':'ok','失败':'err','恢复失败':'err','已停止':'err','超时':'warn','未确认':'warn','已下发（未确认）':'warn','待下发':'','试点中':'info','推广中':'info','已批准（未发布）':'info','试点成功':'ok','待结案':'info','恢复中':'warn','已完成':'ok','已恢复':'ok'};
+  return '<span class="badge ' + (map[status] || '') + '">' + esc(status) + '</span>';
+}
+
+async function api(path, method = 'GET', body, token) {
+  const headers = {'Content-Type': 'application/json'};
+  if (token) headers['X-Auth-Token'] = token;
+  const res = await fetch('/api/v1' + path, {method, headers, body: body ? JSON.stringify(body) : undefined});
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data.error && data.error.message) || ('HTTP ' + res.status));
+  return data.data;
+}
+
+async function loadAccounts() {
+  const data = await api('/demo/accounts');
+  accounts = data.accounts;
+  const sel = document.getElementById('identity');
+  sel.innerHTML = accounts.map(a => `<option value="${a.username}">${esc(a.display_name)}</option>`).join('');
+  current = accounts[0];
+  await loadVehicles();
+}
+
+async function loadVehicles() {
+  const list = await api('/demo/vehicles');
+  const options = list.map(v => `<option value="${v.code}">${v.code}</option>`).join('');
+  document.getElementById('pilot1').innerHTML = options;
+  document.getElementById('pilot2').innerHTML = options;
+  document.getElementById('pilot2').value = 'TE-02';
+}
+
+function switchRole() {
+  const username = document.getElementById('identity').value;
+  current = accounts.find(a => a.username === username) || accounts[0];
+  toast('已切换身份：' + current.display_name + '（' + current.role + '）');
+}
+
+function token() { return current ? current.token : ''; }
+
+async function createApp() {
+  try {
+    const reason = document.getElementById('reason').value.trim();
+    const interval = parseInt(document.getElementById('interval').value, 10);
+    const app = await api('/applications', 'POST', {reason, interval}, token());
+    toast('申请 #' + app.id + ' 已提交，状态：' + app.status_text);
+    await refreshAll();
+  } catch (e) { toast(e.message, false); }
+}
+
+async function decide(id, approve) {
+  try {
+    const reason = approve ? '' : (prompt('请输入退回原因') || '');
+    if (!approve && !reason) { toast('退回必须填写原因', false); return; }
+    await api('/applications/' + id + '/decide', 'POST', {approve, reject_reason: reason}, token());
+    toast((approve ? '已批准，活动已生成' : '已退回，可修改后重提'));
+    await refreshAll();
+  } catch (e) { toast(e.message, false); }
+}
+
+async function resubmit(id) {
+  try {
+    const reason = prompt('修改后的排查原因', document.getElementById('reason').value) || '';
+    const interval = parseInt(prompt('修改后的间隔（10～300）', '30') || '0', 10);
+    await api('/applications/' + id + '/resubmit', 'POST', {reason, interval}, token());
+    toast('已重新提交，保留历史版本');
+    await refreshAll();
+  } catch (e) { toast(e.message, false); }
+}
+
+async function startPilot() {
+  try {
+    const v1 = document.getElementById('pilot1').value;
+    const v2 = document.getElementById('pilot2').value;
+    const view = await api('/campaigns/' + campaignId + '/pilot', 'POST', {vehicles: [v1, v2]}, token());
+    toast('试点已下发，当前状态：' + view.status_text);
+    await refreshAll();
+  } catch (e) { toast(e.message, false); }
+}
+
+async function promote() {
+  try {
+    const view = await api('/campaigns/' + campaignId + '/promote', 'POST', {}, token());
+    toast('已推广，当前状态：' + view.status_text);
+    await refreshAll();
+  } catch (e) { toast(e.message, false); }
+}
+async function stopCamp() {
+  try {
+    const view = await api('/campaigns/' + campaignId + '/stop', 'POST', {reason: document.getElementById('stopReason').value}, token());
+    toast('已停止：' + view.status_text + '（已发与生效记录保留）');
+    await refreshAll();
+  } catch (e) { toast(e.message, false); }
+}
+async function restore() {
+  try {
+    const view = await api('/campaigns/' + campaignId + '/restore', 'POST', {}, token());
+    toast('已批准恢复：' + view.status_text);
+    await refreshAll();
+  } catch (e) { toast(e.message, false); }
+}
+async function complete() {
+  try {
+    const view = await api('/campaigns/' + campaignId + '/complete', 'POST', {}, token());
+    toast('活动已记为完成');
+    await refreshAll();
+  } catch (e) { toast(e.message, false); }
+}
+async function completeRestore() {
+  try {
+    await api('/campaigns/' + campaignId + '/restore/complete', 'POST', {}, token());
+    toast('恢复完成已确认');
+    await refreshAll();
+  } catch (e) { toast(e.message, false); }
+}
+
+async function refreshAll() {
+  await Promise.all([loadApps(), loadCampaign(), loadExceptions(), loadAudits()]);
+}
+
+async function loadApps() {
+  try {
+    const list = await api('/applications');
+    const rows = list.map(a => {
+      const ops = [];
+      if (a.status === 'waiting') {
+        ops.push(`<button class="btn ghost" onclick="decide(${a.id},true)">批准</button>`);
+        ops.push(`<button class="btn danger" onclick="decide(${a.id},false)">退回</button>`);
+      }
+      if (a.status === 'rejected') ops.push(`<button class="btn ghost" onclick="resubmit(${a.id})">修改再提交</button>`);
+      return `<tr><td>#${a.id}</td><td>${esc(a.applicant)}</td><td>${esc(a.reason)}</td><td>${a.interval} 秒</td><td>v${a.version_no}</td>
+        <td>${badge(a.status_text)}</td><td>${a.campaign_id ? ('#' + a.campaign_id + ' ' + esc(a.campaign_status)) : '—'}</td><td>${ops.join(' ') || '—'}</td></tr>`;
+    });
+    document.getElementById('appRows').innerHTML = rows.join('') || '<tr><td colspan="8" class="muted">暂无申请</td></tr>';
+  } catch (e) { document.getElementById('appRows').innerHTML = `<tr><td colspan="8" class="muted">${esc(e.message)}</td></tr>`; }
+}
+
+async function loadCampaign() {
+  try {
+    const c = await api('/campaigns/latest');
+    if (!c || !c.id) {
+      document.getElementById('campSummary').innerHTML = '<span>状态</span><span class="muted">暂无活动</span>';
+      document.getElementById('vehicleRows').innerHTML = '<tr><td colspan="8" class="muted">暂无活动</td></tr>';
+      document.getElementById('recoveryRows').innerHTML = '<tr><td colspan="6" class="muted">尚未发起恢复</td></tr>';
+      return;
+    }
+    campaignId = c.id;
+    document.getElementById('campSummary').innerHTML =
+      `<span>活动</span><span>#${c.id}　${badge(c.status_text)}　目标间隔 ${c.interval} 秒　试点：${esc((c.pilot_vehicles||[]).join('、'))}</span>` +
+      `<span>申请</span><span>#${c.application_id}　${esc(c.reason)}</span>` +
+      (c.stop_reason ? `<span>停止原因</span><span>${esc(c.stop_reason)}</span>` : '') +
+      `<span>全部成功</span><span>${c.all_succeeded ? '是' : '否'}　全部恢复：${c.all_recovered ? '是' : '否（未确认项不得显示已恢复）'}</span>`;
+    document.getElementById('dispatched').textContent = (c.dispatched_vehicles || []).join('、') || '无';
+    document.getElementById('undispatched').textContent = (c.undispatched_vehicles || []).join('、') || '无';
+    document.getElementById('vehicleRows').innerHTML = (c.vehicles || []).map(v => `<tr>
+      <td>${esc(v.code)}</td><td>${v.pre_activity_interval} 秒</td>
+      <td>${v.expected_version ? 'v' + v.expected_version + ' / ' + v.expected_interval + ' 秒' : '—'}</td>
+      <td>${v.applied_version ? 'v' + v.applied_version + ' / ' + v.applied_interval + ' 秒' : '— / ' + v.applied_interval + ' 秒'}</td>
+      <td>${badge(v.status)}${v.late_success ? ' <span class="muted">(超时后迟到成功)</span>' : ''}</td>
+      <td>${esc(v.reason || '—')}</td><td>${fmt(v.dispatched_at)}</td><td>${fmt(v.receipt_at)}</td></tr>`).join('');
+    const rec = c.recovery_rows || [];
+    document.getElementById('recoveryRows').innerHTML = rec.length ? rec.map(v => `<tr>
+      <td>${esc(v.code)}</td><td>${v.expected_interval} 秒</td><td>v${v.expected_version}</td>
+      <td>${v.applied_version ? 'v' + v.applied_version + ' / ' + v.applied_interval + ' 秒' : '— / ' + v.applied_interval + ' 秒'}</td>
+      <td>${badge(v.status)}</td><td>${esc(v.reason || '—')}</td></tr>`).join('') : '<tr><td colspan="6" class="muted">尚未发起恢复</td></tr>';
+  } catch (e) { toast(e.message, false); }
+}
+
+async function loadExceptions() {
+  try {
+    const list = await api('/exceptions');
+    document.getElementById('excRows').innerHTML = list && list.length ? list.slice(0, 20).map(e =>
+      `<tr><td>${fmt(e.created_at)}</td><td>${esc(e.kind)}</td><td>${esc(e.vehicle || '—')}</td><td>${esc(e.detail)}</td></tr>`).join('')
+      : '<tr><td colspan="4" class="muted">暂无异常</td></tr>';
+  } catch (e) { /* 忽略 */ }
+}
+
+async function loadAudits() {
+  try {
+    const list = await api('/audits');
+    document.getElementById('auditRows').innerHTML = list && list.length ? list.slice(0, 20).map(a =>
+      `<tr><td>${fmt(a.CreatedAt)}</td><td>${esc(a.Actor)}</td><td>${esc(a.Action)}</td><td>${esc(a.Target)}</td></tr>`).join('')
+      : '<tr><td colspan="4" class="muted">暂无记录</td></tr>';
+  } catch (e) { /* 忽略 */ }
+}
+
+(async function init() {
+  try {
+    await loadAccounts();
+    await refreshAll();
+    setInterval(() => { loadCampaign(); loadExceptions(); }, 5000);
+  } catch (e) { toast(e.message, false); }
+})();
+</script>
+</body>
+</html>
