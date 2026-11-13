@@ -12,3 +12,12 @@ docs/superpowers/
 /graphify-out/
 /CLAUDE.md
 # AGENTS.md 是本题交付物（项目级 AI 约束），必须纳入版本管理
+
+# 自编 Skill 需要入库（项目级 Skill），其余 .codebuddy 本地状态不入库
+.codebuddy/*
+!.codebuddy/skills/
+!.codebuddy/skills/**
+
+# 覆盖率与核查产物
+coverage.out
+business-check.json
