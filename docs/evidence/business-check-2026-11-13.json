@@ -235,7 +235,7 @@
       "rule": "8",
       "name": "全部确认后恢复完成",
       "ok": true,
-      "evidence": "HTTP 200 status=restored all_recovered=True"
+      "evidence": "HTTP 200 status=restored all_recovered=True err=/ 回执1=200 回执2=200 未确认=['TE-01=已恢复', 'TE-02=已恢复']"
     },
     {
       "rule": "8",
@@ -289,7 +289,7 @@
       "rule": "8",
       "name": "五台全部成功后负责人结案",
       "ok": true,
-      "evidence": "HTTP 200 status=completed"
+      "evidence": "HTTP 200 status=completed err=/ 回执=[TE-01:200;TE-02:200;TE-03:200;TE-04:200;TE-05:200]"
     },
     {
       "rule": "4",
@@ -298,5 +298,5 @@
       "evidence": "逐车=[('TE-01', 3, 120), ('TE-02', 3, 120), ('TE-03', 1, 120), ('TE-04', 1, 120), ('TE-05', 1, 120)]"
     }
   ],
-  "checked_at": "2026-11-13T13:57:44+0800"
+  "checked_at": "2026-11-13T16:52:50+0800"
 }

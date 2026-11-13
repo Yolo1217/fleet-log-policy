@@ -1,0 +1,15 @@
+按包语句覆盖率（多包 profile 按代码块去重求和口径，2026-11-13）
+数据来源：go test -count=1 ./internal/fleetlog/... -coverpkg=./internal/fleetlog/... -coverprofile=cov-canon.out
+口径说明：多包测试会让同一代码块在 profile 中出现多条记录（未执行该块的包写 count=0），
+          必须先按代码块求和再统计；直接逐行累加会被 count=0 记录稀释（会得到约 31.8% 的错误结论）。
+
+| 包 | 语句数 | 已覆盖 | 覆盖率 |
+| --- | --- | --- | --- |
+| internal/fleetlog/entity | 23 | 23 | 100.0% |
+| internal/fleetlog/handler | 255 | 229 | 89.8% |
+| internal/fleetlog/model | 9 | 9 | 100.0% |
+| internal/fleetlog/repo | 155 | 138 | 89.0% |
+| internal/fleetlog/service | 586 | 510 | 87.0% |
+| **合计** | 1028 | 909 | 88.4% |
+
+与 go tool cover -func 的 total 一致；逐函数明细见 coverage.txt。
