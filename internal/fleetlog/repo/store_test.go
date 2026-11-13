@@ -25,6 +25,13 @@ func newTestStore(t *testing.T) *Store {
 	return store
 }
 
+// TestOpenMySQLEmptyDSN 校验 MySQL 连接串缺失时快速失败，避免运行期静默连错库。
+func TestOpenMySQLEmptyDSN(t *testing.T) {
+	if _, err := OpenMySQL(""); err == nil {
+		t.Fatal("空 DSN 应返回错误")
+	}
+}
+
 func TestOpenAndSeedIdempotent(t *testing.T) {
 	store := newTestStore(t)
 	for i := 0; i < 2; i++ {

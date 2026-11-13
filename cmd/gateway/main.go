@@ -20,6 +20,7 @@ import (
 	"fleet-log-policy/internal/fleetlog/service"
 	"fleet-log-policy/internal/gateway/router"
 	"fleet-log-policy/pkg/config"
+	"fleet-log-policy/pkg/database"
 	"fleet-log-policy/pkg/logger"
 	"fleet-log-policy/pkg/observability"
 )
@@ -44,8 +45,9 @@ func main() {
 
 	engine := router.New(log, cfg.Middleware)
 
-	// 题目 09：打开 SQLite（纯 Go 驱动）、迁移、预置数据并挂载业务路由。
-	store, err := repo.Open(dbPath())
+	// 题目 09：默认连接主库（configs/config.yaml 的 database.dsn → 本地 MySQL questions 库）；
+	// 显式设置 FLEETLOG_DB_PATH 时改用 SQLite，供单元测试与隔离核查使用。
+	store, err := openStore(cfg, log)
 	if err != nil {
 		log.Fatal("fleetlog database open failed", zap.Error(err))
 	}
@@ -94,12 +96,34 @@ func main() {
 	waitForShutdown(server, log)
 }
 
-// dbPath 返回 SQLite 文件位置；可用 FLEETLOG_DB_PATH 覆盖。
-func dbPath() string {
-	if v := strings.TrimSpace(os.Getenv("FLEETLOG_DB_PATH")); v != "" {
-		return v
+// openStore 选择存储后端：显式设置 FLEETLOG_DB_PATH 时用 SQLite（测试/隔离核查），
+// 否则用主库（默认本地 MySQL questions 库，DSN 取自配置文件的 database.dsn / mysql.dsn）。
+func openStore(cfg *config.Config, log *zap.Logger) (*repo.Store, error) {
+	if p := strings.TrimSpace(os.Getenv("FLEETLOG_DB_PATH")); p != "" {
+		log.Info("fleetlog storage", zap.String("driver", "sqlite"), zap.String("dsn", p))
+		return repo.Open(p)
 	}
-	return "data/fleetlog.db"
+	if dsn := strings.TrimSpace(os.Getenv("FLEETLOG_DB_DSN")); dsn != "" {
+		log.Info("fleetlog storage", zap.String("driver", "mysql"), zap.String("source", "FLEETLOG_DB_DSN"))
+		return repo.OpenMySQL(dsn)
+	}
+	driver := strings.ToLower(strings.TrimSpace(cfg.Database.Driver))
+	if driver == "" {
+		driver = "mysql"
+	}
+	if driver == "mysql" {
+		dsn := strings.TrimSpace(cfg.Database.DSN)
+		if dsn == "" {
+			dsn = strings.TrimSpace(cfg.MySQL.DSN)
+		}
+		log.Info("fleetlog storage", zap.String("driver", "mysql"), zap.String("database", "questions"))
+		return repo.OpenMySQL(dsn)
+	}
+	db, err := database.Open(cfg.Database, cfg.MySQL, cfg.PostgreSQL, log)
+	if err != nil {
+		return nil, err
+	}
+	return repo.New(db)
 }
 
 // timeoutSeconds 返回教学超时阈值（题面 60 秒；演示可用 FLEETLOG_TIMEOUT_SECONDS 缩短并须注明）。

@@ -1,4 +1,5 @@
-// Package repo 提供题目 09 的持久化访问：SQLite（纯 Go 驱动，无需 CGO）与 Gorm。
+// Package repo 提供题目 09 的持久化访问：运行期使用主库（MySQL），
+// 单元测试与隔离核查使用 SQLite（纯 Go 驱动）。两者共用同一套 Gorm 模型与迁移。
 package repo
 
 import (
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/glebarez/sqlite"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
@@ -19,7 +21,18 @@ type Store struct {
 	DB *gorm.DB
 }
 
-// Open 打开（必要时创建）SQLite 数据库并完成迁移。
+// New 在既有连接上完成迁移并返回仓储。
+func New(db *gorm.DB) (*Store, error) {
+	if err := db.AutoMigrate(
+		&model.Account{}, &model.Vehicle{}, &model.Application{}, &model.ApplicationVersion{},
+		&model.Campaign{}, &model.Release{}, &model.Receipt{}, &model.ExceptionRecord{}, &model.AuditLog{},
+	); err != nil {
+		return nil, fmt.Errorf("数据库迁移失败: %w", err)
+	}
+	return &Store{DB: db}, nil
+}
+
+// Open 打开（必要时创建）SQLite 数据库并完成迁移，用于单元测试与隔离核查。
 func Open(path string) (*Store, error) {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -32,13 +45,21 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("打开 SQLite 失败: %w", err)
 	}
-	if err := db.AutoMigrate(
-		&model.Account{}, &model.Vehicle{}, &model.Application{}, &model.ApplicationVersion{},
-		&model.Campaign{}, &model.Release{}, &model.Receipt{}, &model.ExceptionRecord{}, &model.AuditLog{},
-	); err != nil {
-		return nil, fmt.Errorf("数据库迁移失败: %w", err)
+	return New(db)
+}
+
+// OpenMySQL 连接 MySQL（本地 questions 库）并完成迁移。
+func OpenMySQL(dsn string) (*Store, error) {
+	if dsn == "" {
+		return nil, fmt.Errorf("MySQL DSN 为空，请检查 configs/config.yaml 的 database.dsn")
 	}
-	return &Store{DB: db}, nil
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Warn),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("连接 MySQL 失败: %w", err)
+	}
+	return New(db)
 }
 
 // Seed 写入预置账号、5 台测试车；已存在时跳过，保证重启后数据不丢失。
