@@ -133,7 +133,7 @@ def check_tests(rep, gate):
     rep.add("测试", "go vet ./... 通过", "PASS" if code == 0 else "FAIL", "exit 0" if code == 0 else out[-600:])
 
     profile = Path(tempfile.mkdtemp(prefix="fleetlog-cov-")) / "cov.out"
-    code, out = sh(["go", "test", "-count=1", PKG, f"-coverprofile={profile}"])
+    code, out = sh(["go", "test", "-count=1", PKG, f"-coverpkg={PKG}", f"-coverprofile={profile}"])
     fails = [l for l in out.splitlines() if l.startswith("FAIL") or "--- FAIL" in l]
     rep.add("测试", "单元测试全部通过", "PASS" if code == 0 else "FAIL",
             "全部包 ok" if code == 0 else "; ".join(fails[:5]) or out[-600:])

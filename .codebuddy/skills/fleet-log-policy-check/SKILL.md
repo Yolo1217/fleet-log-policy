@@ -24,6 +24,8 @@ description: 检查题目09「测试车队日志策略」的关键业务约束�
 | `--port` | 否 | 配合 `--start` 使用的监听端口，默认 18080（避免与本机 8080 上的其他服务冲突，且不改动仓库配置） |
 | `--report` | 否 | 输出 JSON 证据文件路径 |
 
+> 需要在真实主库上复检时：先用 `FLEETLOG_DB_DSN` 指向一个独立 schema（如 `questions_check`）启动实例，再用 `--base-url` + 与服务端一致的 `--timeout-seconds` 运行本脚本；核查结束删除该 schema。默认 `--start` 走临时 SQLite，避免污染主库。
+
 预置凭据（脚本内置）：申请人 `demo-token-applicant`、负责人 `demo-token-approver`、运营 `demo-token-operator`；车辆 `veh-token-01`～`veh-token-05`。
 
 ## 执行步骤

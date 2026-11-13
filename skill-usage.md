@@ -11,7 +11,7 @@
 | 使用原因 | 单元测试只能验证包内行为，无法证明"真实 HTTP 流程 + 时序"下题面规则 1～8 同时成立（尤其超时、迟到成功、停止后恢复、未确认项口径）。需要一个可重复执行、只看接口事实的核查器，避免"看代码猜行为" |
 | 使用过程 | 输入：`--start`（脚本自行构建网关，临时配置改到 18080 端口、临时 SQLite、教学超时 3 秒）+ `--report docs/evidence/business-check-2026-11-13.json`。脚本按"异常申请 → 审批 → 试点 → 回执失败/成功/重复/跨车/未知 → 超时 → 迟到成功 → 停止 → 恢复 → 正常推广 → 结案"推进 49 条断言 |
 | 实际帮助 | ① 首轮运行暴露真实缺陷：被拒绝的请求若带请求体，服务端未读完 body 即断开，客户端偶发 `ConnectionResetError`（同一请求重试 3 次仍失败；无请求体时 6/6 成功），导致 401/403 响应丢失；定位后在 `handler.fail` 增加 `drainBody`（消费未读 body 再返回错误），复检通过。② 修正了脚本自身 3 处错误断言口径（`applied`→`applied_interval`、恢复目标字段、第二批试点车的版本预期），避免用错误期望"证明"通过 |
-| 证据及局限 | 输出：`docs/evidence/business-check-2026-11-13.json`（49 项全 PASS）；修复提交见 `dev/09` 的 `fix v0.1.0 ...`；修复前失败输出在会话记录中。局限：脚本单线程串行、不覆盖并发竞争（并发由 Go 用例验证）；`--start` 依赖本机端口可用；对已在运行的服务需人工保证 `--timeout-seconds` 与服务端一致；不替代 `-race` |
+| 证据及局限 | 输出：`docs/evidence/business-check-2026-11-13.json`（SQLite 隔离库 49/49 PASS）、`docs/evidence/business-check-mysql.json`（真实 MySQL 独立 schema `questions_check` 49/49 PASS，核查后已删除该 schema）；修复提交见 `dev/09` 的 `fix v0.1.0 ...`；修复前失败输出在会话记录中。局限：脚本单线程串行、不覆盖并发竞争（并发由 Go 用例验证）；`--start` 依赖本机端口可用；对已在运行的服务需人工保证 `--timeout-seconds` 与服务端一致；不替代 `-race` |
 
 ## 2. fleet-log-acceptance（自编：验收检查）
 

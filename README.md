@@ -62,11 +62,21 @@ curl http://localhost:8080/healthz
 
 预置账号（演示用，令牌仅本机演示）：研发申请人 `demo-token-applicant`、审批负责人 `demo-token-approver`、发布运营 `demo-token-operator`；车辆凭证 `veh-token-01`～`veh-token-05`。鉴权均通过请求头 `X-Auth-Token` / `X-Vehicle-Token`，服务端按令牌解析身份，不接受请求体中的用户或车辆编号。
 
+数据库：**本地 MySQL 主库**，连接串写在 `configs/config.yaml` 的 `database.dsn` / `mysql.dsn`（默认 `root:root@tcp(127.0.0.1:3306)/questions`，库名 `questions`）。启动时自动 `AutoMigrate` 建表并写入预置账号与 5 台车，服务重启后数据保留。
+
+```bash
+# 首次准备（库不存在时）：表由 AutoMigrate 自动创建，无需手工建表
+mysql --host=127.0.0.1 --user=root --password=root -e "create database if not exists questions default charset utf8mb4;"
+```
+
+> `questions` 库内本业务表：`account`、`vehicle`、`application`、`application_version`、`campaign`、`vehicle_release`、`receipt`、`exception_record`、`audit_log`，不与库中其他业务的表重名。示例口令仅用于本机教学演示，生产应改为环境变量/密钥管理。
+
 运行参数（环境变量）：
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
-| `FLEETLOG_DB_PATH` | `data/fleetlog.db` | SQLite 文件位置（纯 Go 驱动，无需 CGO） |
+| `FLEETLOG_DB_DSN` | 空 | 覆盖 MySQL DSN（如 CI 指向独立库） |
+| `FLEETLOG_DB_PATH` | 空 | 设置后改用 SQLite 文件（仅单元测试与隔离核查使用，不连主库） |
 | `FLEETLOG_TIMEOUT_SECONDS` | `60` | 教学超时阈值；演示缩短时须在讲解与截图中注明 |
 
 主要接口：
