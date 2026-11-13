@@ -5,8 +5,8 @@
 | Git | 当前分支为 dev/09 | PASS | HEAD 分支=dev/09 |
 | Git | 工作区干净 | PASS | 无未提交改动 |
 | Git | main 仅初始化提交 | PASS | main 提交数=1；9e83732 docs v0.1.0 初始化 bw-cli 脚手架与项目说明 |
-| Git | dev/09 已推送到远程 | WARN | 本地=0167e6f origin/dev/09=f7a29e2 |
-| Git | feat/fix 提交携带工作项编号 | WARN | 6/6 条缺编号（需在记录中说明）：feat v0.1.0 题目09运行库切换为本地MySQL questions库并保留SQLite测试隔离 |
+| Git | dev/09 已推送到远程 | WARN | 本地=9e9b6ba origin/dev/09=f7a29e2 |
+| Git | feat/fix 提交携带工作项编号 | WARN | 7/7 条缺编号（需在记录中说明）：feat v0.1.0 新增部署与回滚脚本并支持部署端口覆盖 |
 | 交付物 | 必需文件齐全 | PASS | 全部存在 |
 | Skill | fleet-log-policy-check 结构完整（七要素） | PASS | 七要素齐全 |
 | Skill | fleet-log-acceptance 结构完整（七要素） | PASS | 七要素齐全 |
