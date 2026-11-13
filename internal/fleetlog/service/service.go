@@ -70,11 +70,18 @@ func (s *Service) reconcileCampaigns() error {
 				c.Status = entity.CampaignPilotOK
 			} else if anyStatus(pilot, entity.ReleaseTimeout) || anyStatus(pilot, entity.ReleaseFailed) {
 				c.Status = entity.CampaignPaused
+			} else {
+				// 状态无变化时不回写：后台 tick 的旧快照会覆盖请求路径刚写入的状态（丢失更新）。
+				continue
 			}
 		case entity.CampaignPromoting:
 			if len(activity) == 5 && allStatus(activity, entity.ReleaseSucceeded) {
 				c.Status = entity.CampaignPendingEnd
+			} else {
+				continue
 			}
+		default:
+			continue
 		}
 		if err := s.store.UpdateCampaign(nil, &c); err != nil {
 			return err
