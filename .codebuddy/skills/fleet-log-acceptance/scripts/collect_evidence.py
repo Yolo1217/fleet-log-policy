@@ -70,17 +70,19 @@ class Report:
         return "\n".join(lines)
 
 
-def check_git(rep):
+def check_git(rep, report_path=""):
     _, branch = sh(["git", "rev-parse", "--abbrev-ref", "HEAD"])
     _, status = sh(["git", "status", "--porcelain"])
     _, head = sh(["git", "rev-parse", "--short", "HEAD"])
     _, remote = sh(["git", "rev-parse", "--short", "origin/dev/09"])
-    dirty = [l for l in status.splitlines() if l.strip()]
+    report_path = (report_path or "").replace("\\", "/")
+    dirty = [l for l in status.splitlines() if l.strip()
+             and not (report_path and l.split(maxsplit=1)[-1].replace("\\", "/").endswith(report_path))]
     rep.add("Git", "当前分支为 dev/09", "PASS" if branch.strip() == "dev/09" else "FAIL", f"HEAD 分支={branch.strip()}")
     rep.add("Git", "工作区干净", "PASS" if not dirty else "FAIL",
-            "无未提交改动" if not dirty else f"未提交文件 {len(dirty)} 个：" + "; ".join(dirty[:5]))
+    "无未提交改动" if not dirty else f"未提交文件 {len(dirty)} 个：" + "; ".join(dirty[:5]))
     main_ref = ""
-    for ref in ("main", "origin/main"):
+    for ref in ("origin/main", "main"):
         if sh(["git", "rev-parse", "--verify", "--quiet", ref])[0] == 0:
             main_ref = ref
             break
@@ -191,7 +193,7 @@ def main():
     args = ap.parse_args()
 
     rep = Report()
-    check_git(rep)
+    check_git(rep, args.report)
     check_files(rep)
     if not args.skip_tests:
         check_tests(rep, args.coverage_gate)

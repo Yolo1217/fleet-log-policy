@@ -3,10 +3,10 @@
 | 类别 | 检查项 | 结论 | 证据 |
 | --- | --- | --- | --- |
 | Git | 当前分支为 dev/09 | PASS | HEAD 分支=dev/09 |
-| Git | 工作区干净 | FAIL | 未提交文件 1 个： M docs/evidence/acceptance-report.md |
-| Git | main 已合并 dev/09 | PASS | main 提交数=33；dev/09 可达=True；66b7761 merge dev/09 题目09交付记录回填 (PR #2) |
-| Git | dev/09 已推送到远程 | WARN | 本地=5fe0a5f origin/dev/09=5b3b6f0 |
-| Git | feat/fix 提交携带工作项编号 | WARN | 7/7 条缺编号（需在记录中说明）：fix v0.1.0 修正验收Skill合并期main检查为验证dev09可达 |
+| Git | 工作区干净 | PASS | 无未提交改动 |
+| Git | main 已合并 dev/09 | PASS | origin/main 提交数=36；dev/09 可达=True；4a12144 merge dev/09 验收Skill合并期检查修正与最终验收报告 (PR #3) |
+| Git | dev/09 已推送到远程 | WARN | 本地=86b5655 origin/dev/09=72bf9ad |
+| Git | feat/fix 提交携带工作项编号 | WARN | 7/7 条缺编号（需在记录中说明）：fix v0.1.0 修正验收Skill报告自引用与main引用优先级并保存最终报告 |
 | 交付物 | 必需文件齐全 | PASS | 全部存在 |
 | Skill | fleet-log-policy-check 结构完整（七要素） | PASS | 七要素齐全 |
 | Skill | fleet-log-acceptance 结构完整（七要素） | PASS | 七要素齐全 |
@@ -21,4 +21,4 @@
 | 流程 | CI 包含测试与覆盖率门禁 | PASS | go test=True coverage=True |
 | 流程 | 自动部署证据 | WARN | 需人工提供部署链接与流水线运行记录；本脚本不判定部署成功 |
 
-汇总：PASS 13 / WARN 4 / FAIL 1
+汇总：PASS 14 / WARN 4 / FAIL 0
