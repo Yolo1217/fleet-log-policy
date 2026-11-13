@@ -1,0 +1,302 @@
+{
+  "base_url": "http://127.0.0.1:18080",
+  "total": 49,
+  "failed": 0,
+  "items": [
+    {
+      "rule": "1",
+      "name": "未登录提交申请应 401",
+      "ok": true,
+      "evidence": "HTTP 401 unauthorized"
+    },
+    {
+      "rule": "1",
+      "name": "运营角色提交申请应 403",
+      "ok": true,
+      "evidence": "HTTP 403 forbidden"
+    },
+    {
+      "rule": "1",
+      "name": "间隔 9 秒应 400",
+      "ok": true,
+      "evidence": "HTTP 400 invalid_argument"
+    },
+    {
+      "rule": "1",
+      "name": "间隔 301 秒应 400",
+      "ok": true,
+      "evidence": "HTTP 400 invalid_argument"
+    },
+    {
+      "rule": "1",
+      "name": "原因为空应 400",
+      "ok": true,
+      "evidence": "HTTP 400 invalid_argument"
+    },
+    {
+      "rule": "1",
+      "name": "合法申请待审批且参数正确",
+      "ok": true,
+      "evidence": "HTTP 201 id=1 status=waiting interval=45"
+    },
+    {
+      "rule": "1",
+      "name": "申请人自行审批应 403",
+      "ok": true,
+      "evidence": "HTTP 403 forbidden"
+    },
+    {
+      "rule": "1",
+      "name": "退回未填原因应 400",
+      "ok": true,
+      "evidence": "HTTP 400 invalid_argument"
+    },
+    {
+      "rule": "1",
+      "name": "负责人可退回申请",
+      "ok": true,
+      "evidence": "HTTP 200 status=rejected"
+    },
+    {
+      "rule": "1",
+      "name": "退回后重提保留历史版本",
+      "ok": true,
+      "evidence": "version=2 history=2"
+    },
+    {
+      "rule": "1",
+      "name": "批准后生成活动",
+      "ok": true,
+      "evidence": "HTTP 200 campaign=1"
+    },
+    {
+      "rule": "1",
+      "name": "已批准申请不得重复审批",
+      "ok": true,
+      "evidence": "HTTP 409 conflict"
+    },
+    {
+      "rule": "1",
+      "name": "已批准参数不可原地修改",
+      "ok": true,
+      "evidence": "HTTP 409 conflict"
+    },
+    {
+      "rule": "2",
+      "name": "同车队第二个申请不得生成活动",
+      "ok": true,
+      "evidence": "HTTP 409 conflict"
+    },
+    {
+      "rule": "2",
+      "name": "试点选择1 台应 400",
+      "ok": true,
+      "evidence": "HTTP 400 invalid_argument"
+    },
+    {
+      "rule": "2",
+      "name": "试点选择3 台应 400",
+      "ok": true,
+      "evidence": "HTTP 400 invalid_argument"
+    },
+    {
+      "rule": "2",
+      "name": "试点选择外来车辆应 400",
+      "ok": true,
+      "evidence": "HTTP 400 invalid_argument"
+    },
+    {
+      "rule": "2",
+      "name": "试点两车进入试点中",
+      "ok": true,
+      "evidence": "HTTP 200 status=piloting"
+    },
+    {
+      "rule": "2",
+      "name": "试点期其余 3 台拿不到活动配置",
+      "ok": true,
+      "evidence": "符合数=3/3"
+    },
+    {
+      "rule": "2",
+      "name": "试点期间不得重复发起试点",
+      "ok": true,
+      "evidence": "HTTP 409 conflict"
+    },
+    {
+      "rule": "3",
+      "name": "试点未成功即推广被拒且留痕",
+      "ok": true,
+      "evidence": "HTTP 409 留痕=['forbidden', 'illegal_promote', 'open_campaign', 'unauthorized']"
+    },
+    {
+      "rule": "4",
+      "name": "试点车拉取本车 v1/45 秒",
+      "ok": true,
+      "evidence": "HTTP 200 v=1 interval=45"
+    },
+    {
+      "rule": "5",
+      "name": "无车辆凭证拉取应 401",
+      "ok": true,
+      "evidence": "HTTP 401 unauthorized"
+    },
+    {
+      "rule": "5",
+      "name": "跨车回执拒绝并留痕",
+      "ok": true,
+      "evidence": "HTTP 403 forbidden 留痕=['cross_vehicle', 'forbidden', 'illegal_promote', 'open_campaign', 'unauthorized']"
+    },
+    {
+      "rule": "5",
+      "name": "未知版本拒绝并留痕",
+      "ok": true,
+      "evidence": "HTTP 404 not_found 留痕=['cross_vehicle', 'forbidden', 'illegal_promote', 'open_campaign', 'unauthorized', 'unknown_version']"
+    },
+    {
+      "rule": "6",
+      "name": "失败回执不改变此前生效值",
+      "ok": true,
+      "evidence": "applied=60 状态=失败"
+    },
+    {
+      "rule": "4",
+      "name": "成功回执后生效值更新为 45/v1",
+      "ok": true,
+      "evidence": "applied=45 v=1"
+    },
+    {
+      "rule": "5",
+      "name": "重复成功回执幂等",
+      "ok": true,
+      "evidence": "HTTP 200 duplicate=True"
+    },
+    {
+      "rule": "6",
+      "name": "超时显示超时且活动暂停",
+      "ok": true,
+      "evidence": "活动=paused TE-02=超时"
+    },
+    {
+      "rule": "3",
+      "name": "暂停后仍不得推广",
+      "ok": true,
+      "evidence": "HTTP 409 conflict"
+    },
+    {
+      "rule": "6",
+      "name": "超时后迟到成功更新结果并保留超时历史",
+      "ok": true,
+      "evidence": "HTTP 200 applied=45 late=True"
+    },
+    {
+      "rule": "6",
+      "name": "已暂停活动不因迟到回执自动重启",
+      "ok": true,
+      "evidence": "活动=paused"
+    },
+    {
+      "rule": "7",
+      "name": "停止未填原因应 400",
+      "ok": true,
+      "evidence": "HTTP 400 invalid_argument"
+    },
+    {
+      "rule": "7",
+      "name": "停止保留已发/未发范围",
+      "ok": true,
+      "evidence": "已发=['TE-01', 'TE-02'] 未发=['TE-03', 'TE-04', 'TE-05']"
+    },
+    {
+      "rule": "7",
+      "name": "停止不撤销车端已生效配置",
+      "ok": true,
+      "evidence": "v=1 interval=45"
+    },
+    {
+      "rule": "7",
+      "name": "恢复针对曾发布车辆且版本更高、目标为活动前值",
+      "ok": true,
+      "evidence": "车=['TE-01', 'TE-02'] 目标=[60, 60] 版本=[2, 2]"
+    },
+    {
+      "rule": "8",
+      "name": "存在未确认项时不得标记恢复完成",
+      "ok": true,
+      "evidence": "HTTP 409 conflict"
+    },
+    {
+      "rule": "8",
+      "name": "仍有一台未确认时不得显示全部恢复",
+      "ok": true,
+      "evidence": "HTTP 409 conflict"
+    },
+    {
+      "rule": "8",
+      "name": "全部确认后恢复完成",
+      "ok": true,
+      "evidence": "HTTP 200 status=restored all_recovered=True"
+    },
+    {
+      "rule": "8",
+      "name": "未全部成功的活动不得结案",
+      "ok": true,
+      "evidence": "HTTP 409 conflict"
+    },
+    {
+      "rule": "2",
+      "name": "上一活动结束后可发起新活动",
+      "ok": true,
+      "evidence": "HTTP 200 campaign=2"
+    },
+    {
+      "rule": "2",
+      "name": "新活动可试点另两台车",
+      "ok": true,
+      "evidence": "HTTP 200"
+    },
+    {
+      "rule": "4",
+      "name": "TE-03 拉取版本与活动期望值一致且为本车递增版本",
+      "ok": true,
+      "evidence": "pull v=1 期望 v=1 interval=120"
+    },
+    {
+      "rule": "4",
+      "name": "TE-05 拉取版本与活动期望值一致且为本车递增版本",
+      "ok": true,
+      "evidence": "pull v=1 期望 v=1 interval=120"
+    },
+    {
+      "rule": "3",
+      "name": "两台试点成功后进入试点成功",
+      "ok": true,
+      "evidence": "活动=pilot_ok"
+    },
+    {
+      "rule": "3",
+      "name": "试点成功后推广剩余三台",
+      "ok": true,
+      "evidence": "HTTP 200 已下发=5"
+    },
+    {
+      "rule": "8",
+      "name": "仍有未确认车辆时不得结案",
+      "ok": true,
+      "evidence": "HTTP 409 conflict"
+    },
+    {
+      "rule": "8",
+      "name": "五台全部成功后负责人结案",
+      "ok": true,
+      "evidence": "HTTP 200 status=completed"
+    },
+    {
+      "rule": "4",
+      "name": "结案后逐车生效值等于期望值",
+      "ok": true,
+      "evidence": "逐车=[('TE-01', 3, 120), ('TE-02', 3, 120), ('TE-03', 1, 120), ('TE-04', 1, 120), ('TE-05', 1, 120)]"
+    }
+  ],
+  "checked_at": "2026-11-13T10:37:54+0800"
+}
