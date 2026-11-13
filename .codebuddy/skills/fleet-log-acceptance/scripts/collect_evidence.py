@@ -85,12 +85,14 @@ def check_git(rep):
             main_ref = ref
             break
     if not main_ref:
-        rep.add("Git", "main 仅初始化提交", "WARN", "本地与远程均无法解析 main，请先 git fetch")
+        rep.add("Git", "main 已合并 dev/09", "WARN", "本地与远程均无法解析 main，请先 git fetch")
     else:
+        # 合并期检查：main 应包含 dev/09 的提交（通过 PR 合并），且包含脚手架初始化提交
+        anc, _ = sh(["git", "merge-base", "--is-ancestor", "origin/dev/09", main_ref])
         _, main_log = sh(["git", "log", "--oneline", main_ref])
         main_commits = [l for l in main_log.splitlines() if l.strip()]
-        rep.add("Git", "main 仅初始化提交", "PASS" if len(main_commits) <= 1 else "FAIL",
-                f"{main_ref} 提交数={len(main_commits)}；{main_commits[0] if main_commits else '无'}")
+        rep.add("Git", "main 已合并 dev/09", "PASS" if anc == 0 else "FAIL",
+                f"{main_ref} 提交数={len(main_commits)}；dev/09 可达={anc == 0}；{main_commits[0] if main_commits else '无'}")
     rep.add("Git", "dev/09 已推送到远程", "PASS" if remote.strip() and remote.strip() == head.strip() else "WARN",
             f"本地={head.strip()} origin/dev/09={remote.strip() or '未获取'}")
     _, logs = sh(["git", "log", "--pretty=%s", "-20"])
