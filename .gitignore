@@ -10,5 +10,5 @@ docs/superpowers/
 # Local agent/runtime files
 /.codex/
 /graphify-out/
-/AGENTS.md
 /CLAUDE.md
+# AGENTS.md 是本题交付物（项目级 AI 约束），必须纳入版本管理
