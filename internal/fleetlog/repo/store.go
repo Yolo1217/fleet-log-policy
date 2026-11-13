@@ -118,6 +118,17 @@ func (s *Store) UpdateCampaign(tx *gorm.DB, c *model.Campaign) error {
 	return s.db(tx).Save(c).Error
 }
 
+// CompareAndSetCampaignStatus 仅当库内状态仍为 from 时才更新为 to，返回是否命中。
+// 后台 tick 的活动状态推进必须走这里：它读到的是快照，若在此期间请求路径已把活动推进，
+// 直接 Save 会把状态写回旧值（丢失更新），表现为"活动不在恢复中""状态不允许结案"等偶发 409。
+func (s *Store) CompareAndSetCampaignStatus(id uint, from, to string) (bool, error) {
+	res := s.DB.Model(&model.Campaign{}).Where("id = ? AND status = ?", id, from).Update("status", to)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
 // LatestCampaign 返回最新活动（无则 ErrNotFound）。
 func (s *Store) LatestCampaign() (model.Campaign, error) {
 	var c model.Campaign

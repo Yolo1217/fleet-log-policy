@@ -257,10 +257,30 @@ func TestInvalidIDParameters(t *testing.T) {
 
 func TestQueryAndDemoEndpoints(t *testing.T) {
 	r := newTestRouter(t)
-	for _, path := range []string{"/api/v1/exceptions", "/api/v1/audits", "/api/v1/demo/accounts", "/api/v1/demo/vehicles"} {
+	for _, path := range []string{"/api/v1/exceptions", "/api/v1/audits"} {
 		if code, resp := do(t, r, http.MethodGet, path, nil, nil); code != http.StatusOK || len(resp.Data) == 0 {
 			t.Fatalf("%s 应 200 且有数据，实际 %d", path, code)
 		}
 	}
+	// 演示凭据接口只允许本机访问：回环地址 200，其他来源 403（防止匿名取得各角色令牌）。
+	for _, path := range []string{"/api/v1/demo/accounts", "/api/v1/demo/vehicles"} {
+		if code, resp := demoReq(t, r, path, "127.0.0.1:54321"); code != http.StatusOK || len(resp.Data) == 0 {
+			t.Fatalf("%s 本机访问应 200，实际 %d", path, code)
+		}
+		if code, _ := demoReq(t, r, path, "10.1.2.3:5555"); code != http.StatusForbidden {
+			t.Fatalf("%s 非本机来源应 403，实际 %d", path, code)
+		}
+	}
 	_ = time.Now()
+}
+
+func demoReq(t *testing.T, r *gin.Engine, path, remote string) (int, apiResp) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.RemoteAddr = remote
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	var out apiResp
+	_ = json.Unmarshal(w.Body.Bytes(), &out)
+	return w.Code, out
 }
