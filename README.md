@@ -44,7 +44,7 @@ make run-gateway
   api: http://127.0.0.1:8080/api/v1
 ```
 
-如果端口被占用，控制台会输出 `[Gateway Start Failed]`，并显示失败的监听地址和系统错误。
+如果端口被占用，控制台会输出 `[Gateway Start Failed]`，并显示失败的监听地址和系统错误；可用环境变量 `FLEETLOG_HTTP_PORT` 改端口，或直接使用 `deploy/deploy.ps1`（默认 18080）。
 
 健康检查：
 
@@ -78,6 +78,17 @@ mysql --host=127.0.0.1 --user=root --password=root -e "create database if not ex
 | `FLEETLOG_DB_DSN` | 空 | 覆盖 MySQL DSN（如 CI 指向独立库） |
 | `FLEETLOG_DB_PATH` | 空 | 设置后改用 SQLite 文件（仅单元测试与隔离核查使用，不连主库） |
 | `FLEETLOG_TIMEOUT_SECONDS` | `60` | 教学超时阈值；演示缩短时须在讲解与截图中注明 |
+
+部署与回滚（本机教学环境）：
+
+```powershell
+# 一键部署：质量门禁 → 构建 → 启动 → 健康检查 → 业务冒烟 → 写部署记录（默认端口 18080）
+powershell -ExecutionPolicy Bypass -File deploy/deploy.ps1 -Port 18080
+# 回滚到上一可用版本
+powershell -ExecutionPolicy Bypass -File deploy/rollback.ps1
+```
+
+部署记录（提交、版本、地址、冒烟结果、回滚方式）见 `docs/evidence/deploy-*.md`；数据库初始化脚本为 `db/schema.sql`（幂等建表，服务启动另会 AutoMigrate）。CI 流水线（`.github/workflows/ci.yml`）包含 vet、单测、覆盖率门禁、`-race`、业务规则黑盒核查、构建制品与部署冒烟。
 
 主要接口：
 
