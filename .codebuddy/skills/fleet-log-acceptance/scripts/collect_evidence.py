@@ -145,7 +145,8 @@ def check_tests(rep, gate):
         code2, funcs = sh(["go", "tool", "cover", "-func", str(profile)])
         m = re.search(r"total:\s+\(statements\)\s+([\d.]+)%", funcs)
         total = float(m.group(1)) if m else None
-        zeros = [l for l in funcs.splitlines() if l.rstrip().endswith("0.0%") and not l.startswith("total:")]
+        zeros = [l for l in funcs.splitlines()
+                 if (m2 := re.search(r"\s(\d+\.\d)%$", l)) and float(m2.group(1)) == 0.0 and not l.startswith("total:")]
         if zeros:
             first = zeros[0].rsplit("\t", 2)
             detail += f"；0% 函数 {len(zeros)} 个（如 {first[0].split(':')[-1]}）"
