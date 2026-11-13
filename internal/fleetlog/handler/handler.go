@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -404,8 +405,18 @@ func idParam(c *gin.Context) (uint, bool) {
 	return uint(v), true
 }
 
+// drainBody 在拒绝请求前消费未读请求体，避免服务端提前关闭连接导致客户端收不到错误响应。
+func drainBody(c *gin.Context) {
+	if c.Request == nil || c.Request.Body == nil {
+		return
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(c.Request.Body, 1<<20))
+	_ = c.Request.Body.Close()
+}
+
 // fail 将业务错误映射为统一响应：unauthorized 401 / forbidden 403 / not_found 404 / conflict 409。
 func fail(c *gin.Context, err error) {
+	drainBody(c)
 	de, ok := err.(*entity.DomainError)
 	status := http.StatusBadRequest
 	code, message := "invalid_argument", "请求参数不合法"
