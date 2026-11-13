@@ -52,6 +52,44 @@ make run-gateway
 curl http://localhost:8080/healthz
 ```
 
+## 题目 09 业务功能（已实现）
+
+启动后打开页面：
+
+- 业务操作页：<http://127.0.0.1:8080/web/index.html>（申请、审批、试点、推广、停止、恢复、逐车核查、异常留痕）
+- 模拟车辆控制台：<http://127.0.0.1:8080/web/vehicle.html>（拉取配置、成功/失败/重复/跨车/未确认回执）
+- 交互原型（静态）：`docs/09-原型.html`
+
+预置账号（演示用，令牌仅本机演示）：研发申请人 `demo-token-applicant`、审批负责人 `demo-token-approver`、发布运营 `demo-token-operator`；车辆凭证 `veh-token-01`～`veh-token-05`。鉴权均通过请求头 `X-Auth-Token` / `X-Vehicle-Token`，服务端按令牌解析身份，不接受请求体中的用户或车辆编号。
+
+运行参数（环境变量）：
+
+| 变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `FLEETLOG_DB_PATH` | `data/fleetlog.db` | SQLite 文件位置（纯 Go 驱动，无需 CGO） |
+| `FLEETLOG_TIMEOUT_SECONDS` | `60` | 教学超时阈值；演示缩短时须在讲解与截图中注明 |
+
+主要接口：
+
+```text
+POST /api/v1/applications                 # 创建申请（申请人）
+POST /api/v1/applications/:id/resubmit    # 退回后重提（保留历史版本）
+POST /api/v1/applications/:id/decide      # 批准/退回（负责人，审批人≠申请人）
+GET  /api/v1/applications[?/:id]
+GET  /api/v1/campaigns/latest             # 活动总览 + 逐车核查 + 恢复结果
+POST /api/v1/campaigns/:id/pilot          # 试点 2 台（运营）
+POST /api/v1/campaigns/:id/promote        # 推广剩余 3 台（试点未完成拒绝并留痕）
+POST /api/v1/campaigns/:id/stop           # 停止（负责人，保留已发/未发范围）
+POST /api/v1/campaigns/:id/restore        # 批准恢复（更高版本，目标=活动前值）
+POST /api/v1/campaigns/:id/complete       # 结案（全部成功才允许）
+POST /api/v1/campaigns/:id/restore/complete  # 恢复完成（全部确认才允许）
+GET  /api/v1/vehicle/config               # 车辆拉取（仅本车最新已发布版本）
+POST /api/v1/vehicle/receipts             # 车辆回执（幂等、版本单调、跨车/未知拒绝）
+GET  /api/v1/exceptions | /api/v1/audits  # 异常留痕与审计
+```
+
+数据模型要点：`vehicle` 保存 `applied_interval/applied_version`（生效值）与 `latest_version`（每车版本单调游标）；`vehicle_release` 保存期望值 `target_interval/version_no`、下发与回执时间、超时与迟到成功标记；失败回执不修改生效值；恢复是新版本下发而非撤销记录。
+
 ## 目录结构
 
 ```text
